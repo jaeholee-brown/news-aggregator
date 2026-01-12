@@ -84,6 +84,30 @@ class MetaculusClient:
         data = response.json()
         return self._parse_question_data(data, data.get("id", question_id))
 
+    def get_series_id_by_slug(self, slug: str) -> Optional[int]:
+        """
+        Get series/tournament ID from its slug (e.g., 'bridgewater' -> 32844).
+
+        Args:
+            slug: URL slug like 'bridgewater' or 'ai-forecasting-2024'
+
+        Returns:
+            Series ID if found, None otherwise
+        """
+        # Try the tournament/project detail endpoint
+        url = f"{self.BASE_URL}/projects/{slug}/"
+        response = self._request_with_retry(url)
+
+        if response and response.ok:
+            data = response.json()
+            series_id = data.get("id")
+            if series_id:
+                print(f"  Resolved '{slug}' -> series ID {series_id} ({data.get('name', 'Unknown')})")
+                return series_id
+
+        print(f"  Could not resolve slug '{slug}' to series ID")
+        return None
+
     def get_questions_in_series(self, series_id: int) -> list[QuestionMetadata]:
         """Fetch all questions in a series/project."""
         url = f"{self.BASE_URL}/posts/"

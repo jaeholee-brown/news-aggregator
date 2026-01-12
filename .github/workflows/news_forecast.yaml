@@ -70,6 +70,7 @@ jobs:
           # Questions to track (use GitHub Variables for easy updates)
           QUESTION_IDS: ${{ vars.QUESTION_IDS }}
           SERIES_IDS: ${{ vars.SERIES_IDS }}
+          SERIES_SLUGS: ${{ vars.SERIES_SLUGS }}
 
           # Model configuration
           CHANGE_DETECTION_MODEL: ${{ vars.CHANGE_DETECTION_MODEL || 'gpt-5-mini' }}

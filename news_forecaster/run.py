@@ -114,7 +114,7 @@ async def get_questions_to_process(
             questions.append(q)
             print(f"  Found: {q.title}")
 
-    # Questions from series
+    # Questions from series (by numeric ID)
     for series_id in config.series_ids:
         print(f"Fetching questions from series {series_id}...")
         series_questions = client.get_questions_in_series(series_id)
@@ -123,6 +123,21 @@ async def get_questions_to_process(
 
         # Save series mapping
         storage.save_series(series_id, [q.question_id for q in series_questions])
+
+    # Questions from series (by slug)
+    for slug in config.series_slugs:
+        print(f"Resolving series slug '{slug}'...")
+        series_id = client.get_series_id_by_slug(slug)
+        if series_id:
+            print(f"Fetching questions from series {series_id}...")
+            series_questions = client.get_questions_in_series(series_id)
+            print(f"  Found {len(series_questions)} questions")
+            questions.extend(series_questions)
+
+            # Save series mapping
+            storage.save_series(series_id, [q.question_id for q in series_questions])
+        else:
+            print(f"  Warning: Could not resolve slug '{slug}' to series ID")
 
     # Deduplicate by question_id
     seen = set()

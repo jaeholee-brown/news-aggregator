@@ -34,6 +34,7 @@ class Config:
     # Questions to track
     question_ids: list[int] = field(default_factory=list)
     series_ids: list[int] = field(default_factory=list)
+    series_slugs: list[str] = field(default_factory=list)  # Alternative to series_ids
 
     # Data storage
     data_dir: Path = field(default_factory=lambda: Path("data"))
@@ -61,6 +62,10 @@ class Config:
         if sids_str := os.getenv("SERIES_IDS"):
             series_ids = [int(s.strip()) for s in sids_str.split(",") if s.strip()]
 
+        series_slugs = []
+        if slugs_str := os.getenv("SERIES_SLUGS"):
+            series_slugs = [s.strip() for s in slugs_str.split(",") if s.strip()]
+
         # Data directory
         data_dir = Path(os.getenv("DATA_DIR", "data"))
 
@@ -77,6 +82,7 @@ class Config:
             email_recipients=email_recipients,
             question_ids=question_ids,
             series_ids=series_ids,
+            series_slugs=series_slugs,
             data_dir=data_dir,
             change_detection_model=os.getenv("CHANGE_DETECTION_MODEL", "gpt-5-mini"),
             significance_threshold=significance_threshold,
@@ -90,7 +96,7 @@ class Config:
             missing.append("EXA_API_KEY")
         if not self.openai_api_key:
             missing.append("OPENAI_API_KEY")
-        if not self.question_ids and not self.series_ids:
-            missing.append("QUESTION_IDS or SERIES_IDS (at least one required)")
+        if not self.question_ids and not self.series_ids and not self.series_slugs:
+            missing.append("QUESTION_IDS, SERIES_IDS, or SERIES_SLUGS (at least one required)")
 
         return missing
