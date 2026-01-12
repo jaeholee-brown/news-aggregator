@@ -42,7 +42,7 @@ class Config:
     change_detection_model: str = "gpt-5-mini"
 
     # Thresholds
-    significance_threshold: float = 0.3  # News change significance threshold
+    significance_threshold: float = 0.2  # News change significance threshold
     min_content_length: int = 500  # Minimum chars before Firecrawl fallback
 
     @classmethod
@@ -64,6 +64,9 @@ class Config:
         # Data directory
         data_dir = Path(os.getenv("DATA_DIR", "data"))
 
+        # Significance threshold (configurable via env)
+        significance_threshold = float(os.getenv("SIGNIFICANCE_THRESHOLD", "0.2"))
+
         return cls(
             metaculus_token=os.getenv("METACULUS_TOKEN"),
             exa_api_key=os.getenv("EXA_API_KEY"),
@@ -76,6 +79,7 @@ class Config:
             series_ids=series_ids,
             data_dir=data_dir,
             change_detection_model=os.getenv("CHANGE_DETECTION_MODEL", "gpt-5-mini"),
+            significance_threshold=significance_threshold,
         )
 
     def validate(self) -> list[str]:

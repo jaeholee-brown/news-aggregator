@@ -59,12 +59,25 @@ async def process_question(
             change_report = await change_detector.detect_changes(
                 question, previous_news, merged_news
             )
-            print(f"Change significance: {change_report.significance_score:.2f}")
-            print(f"Is significant: {change_report.is_significant}")
+            print(f"  -> Significance score: {change_report.significance_score:.2f}")
+            print(f"  -> Is significant: {change_report.is_significant}")
             if change_report.change_summary:
-                print(f"Summary: {change_report.change_summary[:200]}")
+                print(f"  -> Summary: {change_report.change_summary[:200]}")
         else:
+            # First run - if we found articles, mark as significant so user gets notified
             print("First run - no previous news to compare")
+            if merged_news.articles:
+                print(f"  -> Found {len(merged_news.articles)} articles on first run - marking as SIGNIFICANT")
+                change_report = ChangeReport(
+                    question_id=question.question_id,
+                    detected_at=datetime.now(timezone.utc),
+                    previous_snapshot_id=None,
+                    current_snapshot_id=merged_news.snapshot_id,
+                    change_summary=f"First news aggregation: found {len(merged_news.articles)} relevant article(s).",
+                    significance_score=1.0,  # First run is always significant
+                    is_significant=True,
+                    new_articles=merged_news.articles,
+                )
 
         # Save news snapshot
         storage.save_news(question.question_id, merged_news)
@@ -141,6 +154,8 @@ async def main():
 
     # Initialize components
     print("\nInitializing components...")
+    print(f"  Significance threshold: {config.significance_threshold}")
+    print(f"  Change detection model: {config.change_detection_model}")
     metaculus = MetaculusClient(config.metaculus_token)
     news_agg = NewsAggregator(
         config.exa_api_key,
@@ -191,16 +206,18 @@ async def main():
     ]
     print(f"Significant news changes: {len(significant_updates)}")
 
+    print("\nAll scores:")
     for update in updates:
-        status = ""
+        score = update.change_report.significance_score if update.change_report else 0.0
+        is_sig = update.change_report.is_significant if update.change_report else False
         if update.change_report:
-            if update.change_report.is_significant:
-                status = "[SIGNIFICANT]"
+            if is_sig:
+                marker = "***"  # Significant
             else:
-                status = f"[score={update.change_report.significance_score:.2f}]"
+                marker = "   "
+            print(f"  {marker} score={score:.2f} | {update.question.title[:60]}")
         else:
-            status = "[FIRST RUN]"
-        print(f"  - {update.question.title[:50]}... {status}")
+            print(f"       [NO CHANGE REPORT] | {update.question.title[:60]}")
 
     # Send email notification if there are significant updates
     if email_notifier and config.email_recipients:

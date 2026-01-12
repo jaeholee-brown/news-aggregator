@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -11,19 +12,56 @@ from .models import QuestionMetadata
 
 
 class MetaculusClient:
-    """Read-only Metaculus API client."""
+    """Read-only Metaculus API client with rate limiting."""
 
     BASE_URL = "https://www.metaculus.com/api"
+
+    # Rate limiting: ~1 request per second with exponential backoff on 429
+    MIN_REQUEST_INTERVAL = 1.0  # seconds between requests
+    MAX_RETRIES = 5
+    INITIAL_BACKOFF = 2.0  # seconds
 
     def __init__(self, token: Optional[str] = None):
         self.headers = {}
         if token:
             self.headers["Authorization"] = f"Token {token}"
+        self._last_request_time = 0.0
+
+    def _rate_limit(self) -> None:
+        """Ensure minimum time between requests."""
+        elapsed = time.time() - self._last_request_time
+        if elapsed < self.MIN_REQUEST_INTERVAL:
+            sleep_time = self.MIN_REQUEST_INTERVAL - elapsed
+            time.sleep(sleep_time)
+        self._last_request_time = time.time()
+
+    def _request_with_retry(
+        self, url: str, params: Optional[dict] = None
+    ) -> Optional[requests.Response]:
+        """Make a request with rate limiting and exponential backoff on 429."""
+        for attempt in range(self.MAX_RETRIES):
+            self._rate_limit()
+            response = requests.get(url, headers=self.headers, params=params)
+
+            if response.status_code == 429:
+                # Rate limited - exponential backoff
+                backoff = self.INITIAL_BACKOFF * (2 ** attempt)
+                print(f"Rate limited (429). Waiting {backoff:.1f}s before retry...")
+                time.sleep(backoff)
+                continue
+
+            return response
+
+        print(f"Max retries ({self.MAX_RETRIES}) exceeded for {url}")
+        return None
 
     def get_question(self, question_id: int) -> Optional[QuestionMetadata]:
         """Fetch a single question by post ID."""
         url = f"{self.BASE_URL}/posts/{question_id}/"
-        response = requests.get(url, headers=self.headers)
+        response = self._request_with_retry(url)
+
+        if response is None:
+            return None
 
         if not response.ok:
             print(f"Failed to fetch question {question_id}: {response.status_code}")
@@ -34,7 +72,10 @@ class MetaculusClient:
     def get_question_by_question_id(self, question_id: int) -> Optional[QuestionMetadata]:
         """Fetch a question using the questions endpoint."""
         url = f"{self.BASE_URL}2/questions/{question_id}/"
-        response = requests.get(url, headers=self.headers)
+        response = self._request_with_retry(url)
+
+        if response is None:
+            return None
 
         if not response.ok:
             print(f"Failed to fetch question {question_id}: {response.status_code}")
@@ -52,7 +93,11 @@ class MetaculusClient:
             "include_description": "true",
         }
 
-        response = requests.get(url, headers=self.headers, params=params)
+        response = self._request_with_retry(url, params)
+
+        if response is None:
+            print(f"Failed to fetch series {series_id} after retries")
+            return []
 
         if not response.ok:
             print(f"Failed to fetch series {series_id}: {response.status_code}")
