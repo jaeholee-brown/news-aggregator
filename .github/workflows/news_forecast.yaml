@@ -1,0 +1,94 @@
+name: News Aggregation and Change Detection
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: "0 */3 * * *"  # Every 3 hours (0:00, 3:00, 6:00, etc.)
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  aggregate_and_notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      # Restore data directory from previous runs
+      - name: Restore data cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/
+          key: news-data-${{ github.ref_name }}
+          restore-keys: |
+            news-data-
+
+      - name: Run news aggregator
+        run: poetry run python -m news_forecaster.run
+        env:
+          # News aggregation
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+
+          # LLM for change detection
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+          # Metaculus
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+
+          # Email notifications
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
+
+          # Questions to track (use GitHub Variables for easy updates)
+          QUESTION_IDS: ${{ vars.QUESTION_IDS }}
+          SERIES_IDS: ${{ vars.SERIES_IDS || '32844' }}
+
+          # Model configuration
+          CHANGE_DETECTION_MODEL: ${{ vars.CHANGE_DETECTION_MODEL || 'gpt-5-mini' }}
+
+      # Save data directory for next run
+      - name: Save data cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/
+          key: news-data-${{ github.ref_name }}-${{ github.run_id }}
+
+      # Optional: Commit updated data to repo for persistence
+      - name: Commit data updates
+        if: success() && github.event_name == 'schedule'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/
+          git diff --staged --quiet || git commit -m "Update news data [skip ci]"
+          git push
+        continue-on-error: true

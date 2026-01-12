@@ -2,6 +2,10 @@
 benchmarks/
 sandbox.py
 
+# Data files (but keep directory structure)
+data/**/*.json
+!data/**/.gitkeep
+
 
 ### General gitignore ###
 
