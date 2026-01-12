@@ -71,7 +71,7 @@ async def process_question(
                 change_report = ChangeReport(
                     question_id=question.question_id,
                     detected_at=datetime.now(timezone.utc),
-                    previous_snapshot_id=None,
+                    previous_snapshot_id="",  # Empty string for first run (no previous)
                     current_snapshot_id=merged_news.snapshot_id,
                     change_summary=f"First news aggregation: found {len(merged_news.articles)} relevant article(s).",
                     significance_score=1.0,  # First run is always significant
