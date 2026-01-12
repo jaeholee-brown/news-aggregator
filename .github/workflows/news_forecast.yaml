@@ -1,5 +1,8 @@
 name: News Aggregation and Change Detection
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:  # Manual trigger
   schedule:
