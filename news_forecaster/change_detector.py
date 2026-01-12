@@ -102,7 +102,7 @@ class ChangeDetector:
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
+            # Note: gpt-5-mini only supports default temperature (1)
         )
 
         result_text = response.choices[0].message.content or "{}"
